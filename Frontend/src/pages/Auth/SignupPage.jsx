@@ -6,7 +6,6 @@ import TextInput from '../../components/Form/TextInput'
 import PrimaryButton from '../../components/Form/PrimaryButton'
 
 const SignupPage = () => {
-  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
