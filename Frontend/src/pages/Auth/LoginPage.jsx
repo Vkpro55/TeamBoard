@@ -1,14 +1,28 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { LayoutDashboard } from 'lucide-react';
 import AuthCard from '../../components/Auth/AuthCard'
 import TextInput from '../../components/Form/TextInput'
 import PrimaryButton from '../../components/Form/PrimaryButton'
+import { useAuth } from '../../hooks/useAuth'
 
 const LoginPage = () => {
+  const navigate = useNavigate()
+  const { login, loading, error } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(false)
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+
+    try {
+      await login({ email, password })
+      navigate('/')
+    } catch {
+      // error is handled by context
+    }
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface)] px-4 py-12 sm:px-6">
@@ -21,7 +35,7 @@ const LoginPage = () => {
         </div>
 
         <AuthCard title="Sign in">
-          <form className="flex w-full flex-col items-center gap-[16px]" onSubmit={(event) => event.preventDefault()}>
+          <form className="flex w-full flex-col items-center gap-[16px]" onSubmit={handleSubmit}>
             <div className="flex w-full flex-col items-start gap-[6px] pt-[5px]">
               <span className="text-[12px] text-[#45464C]">Email</span>
               <TextInput
@@ -74,7 +88,10 @@ const LoginPage = () => {
               </label>
             </div>
 
-            <PrimaryButton type="submit">Sign in</PrimaryButton>
+            {error ? <p className="w-full text-sm text-red-600">{error}</p> : null}
+            <PrimaryButton type="submit" disabled={loading}>
+              {loading ? 'Signing in...' : 'Sign in'}
+            </PrimaryButton>
           </form>
         </AuthCard>
 
