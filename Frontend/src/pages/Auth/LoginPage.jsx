@@ -25,7 +25,7 @@ const LoginPage = () => {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-surface)] px-4 py-12 sm:px-6">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--color-muted)] px-4 py-12 sm:px-6">
       <div className="flex w-full max-w-[400px] flex-col items-center">
         <div className="flex flex-col items-center pb-8">
           <div className="flex flex-col items-center gap-1">

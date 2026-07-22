@@ -14,10 +14,10 @@
   --color-background: #f8f7f5;
   --color-surface: #ffffff;
   --color-muted: #f3f4f6;
-  --color-sidebar: #fafafa;
+  --color-sidebar: var(--color-gray-100);
 
   /* Borders */
-  --color-border: #d9d9d9;
+  --color-border: #C6C6CD;
   --color-border-light: #ececec;
 
   /* Text */

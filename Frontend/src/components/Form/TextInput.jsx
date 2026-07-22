@@ -1,4 +1,4 @@
-const TextInput = ({ id, name, type = 'text', autoComplete, value, onChange, placeholder, required }) => {
+const TextInput = ({ id, name, type = 'text', autoComplete, value, onChange, placeholder, required, className = '' }) => {
   return (
     <input
       id={id}
@@ -9,7 +9,7 @@ const TextInput = ({ id, name, type = 'text', autoComplete, value, onChange, pla
       onChange={onChange}
       placeholder={placeholder}
       required={required}
-      className="w-full rounded-[4px] border border-[var(--color-border)] bg-[#F6F3F4] px-[17px] py-[10px] text-[14px] text-[#76777D] outline-none"
+      className={`w-full rounded-[4px] border border-[var(--color-border)] bg-[var(--color-surface)] px-[17px] py-[5px] text-[14px] text-[#76777D] outline-none placeholder:text-gray-500 placeholder:italic ${className}`}
     />
   )
 }
