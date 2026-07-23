@@ -4,6 +4,7 @@ import {
   archiveProject,
   createProject,
   deleteProject,
+  listProjects,
   updateProject,
 } from '../controllers/projectController';
 import taskRoutes from './taskRoutes';
@@ -12,6 +13,7 @@ const router = Router();
 
 router.use(requireAuth);
 
+router.get('/', listProjects);
 router.post('/', createProject);
 router.put('/:projectId', updateProject);
 router.delete('/:projectId', deleteProject);

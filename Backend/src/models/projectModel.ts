@@ -4,7 +4,7 @@ export interface IProject extends Document {
     owner: Types.ObjectId;
     name: string;
     description: string;
-    status: "Active" | "Archived";
+    status: "Active" | "Archived" | "Completed";
     createdAt: Date;
     updatedAt: Date;
 }
@@ -33,7 +33,7 @@ const projectSchema = new Schema<IProject>(
 
         status: {
             type: String,
-            enum: ["Active", "Archived"],
+            enum: ["Active", "Archived", "Completed"],
             default: "Active",
             index: true,
         },

@@ -1,7 +1,38 @@
 import { type Request, type Response } from 'express';
+import { Types } from 'mongoose';
 import Project from '../models/projectModel';
 import Task from '../models/taskModel';
 import { createProjectSchema, updateProjectSchema } from '../schemas/projectSchemas';
+
+export async function listProjects(req: Request, res: Response) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const owner = new Types.ObjectId(req.user.id);
+
+  const [projects, statusCounts] = await Promise.all([
+    Project.find({ owner: req.user.id }).sort({ createdAt: -1 }),
+    Project.aggregate<{ _id: string; count: number }>([
+      { $match: { owner } },
+      { $group: { _id: '$status', count: { $sum: 1 } } },
+    ]),
+  ]);
+
+  const countByStatus = statusCounts.reduce<Record<string, number>>((acc, item) => {
+    acc[item._id] = item.count;
+    return acc;
+  }, {});
+
+  return res.status(200).json({
+    projects,
+    stats: {
+      total: projects.length,
+      active: countByStatus.Active ?? 0,
+      completed: countByStatus.Completed ?? 0,
+    },
+  });
+}
 
 export async function createProject(req: Request, res: Response) {
   if (!req.user) {

@@ -1,4 +1,5 @@
-import { Check, ChevronLeft, ChevronRight, MoreHorizontal, Plus } from 'lucide-react'
+import { Check, MoreHorizontal, Plus } from 'lucide-react'
+import Pagination from '../components/Pagination'
 
 const tasks = [
   {
@@ -46,69 +47,6 @@ const statusClasses = {
   'To Do': 'bg-gray-100 text-gray-600',
   Done: 'bg-green-100 text-green-700',
   Review: 'bg-indigo-100 text-indigo-700',
-}
-
-function Pagination({ currentPage, totalPages }) {
-  const pages = []
-
-  if (totalPages <= 3) {
-    for (let i = 1; i <= totalPages; i += 1) {
-      pages.push(i)
-    }
-  } else {
-    pages.push(1)
-
-    if (currentPage > 2) {
-      pages.push('...')
-    }
-
-    if (currentPage !== 1 && currentPage !== totalPages) {
-      pages.push(currentPage)
-    }
-
-    if (currentPage < totalPages - 1) {
-      pages.push('...')
-    }
-
-    pages.push(totalPages)
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        disabled={currentPage === 1}
-        className="rounded-sm border border-[var(--color-border)] px-2 py-1.5 text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50"
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </button>
-
-      {pages.map((page, idx) =>
-        page === '...' ? (
-          <span key={idx} className="px-2 text-sm text-[var(--color-text-muted)]">
-            ...
-          </span>
-        ) : (
-          <button
-            key={page}
-            className={`rounded-sm px-3 py-1.5 text-sm font-medium ${
-              currentPage === page
-                ? 'bg-[var(--color-text)] text-white'
-                : 'border border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-[var(--color-text)]'
-            }`}
-          >
-            {page}
-          </button>
-        ),
-      )}
-
-      <button
-        disabled={currentPage === totalPages}
-        className="rounded-sm border border-[var(--color-border)] px-2 py-1.5 text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)] disabled:opacity-50"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
-    </div>
-  )
 }
 
 const TasksPage = () => {
@@ -220,7 +158,7 @@ const TasksPage = () => {
         <div className="flex flex-col gap-3 border-t border-[var(--color-border-light)] p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-[var(--color-text-muted)]">Showing 4 of 24 tasks</p>
 
-          <Pagination currentPage={currentPage} totalPages={totalPages} />
+          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={() => {}} />
         </div>
       </div>
     </div>
