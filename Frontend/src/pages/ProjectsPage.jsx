@@ -23,6 +23,11 @@ const formatDate = (date) =>
     year: 'numeric',
   }).format(new Date(date))
 
+const initialProjectForm = {
+  name: '',
+  description: '',
+}
+
 const ProjectsPage = () => {
   const pageSize = 5
   const [currentPage, setCurrentPage] = useState(1)
@@ -30,8 +35,14 @@ const ProjectsPage = () => {
   const [stats, setStats] = useState({ total: 0, active: 0, completed: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [createForm, setCreateForm] = useState(initialProjectForm)
+  const [createError, setCreateError] = useState('')
+  const [creating, setCreating] = useState(false)
+  const [openActionProjectId, setOpenActionProjectId] = useState(null)
+  const [updatingProjectId, setUpdatingProjectId] = useState(null)
 
-  const loadProjects = useCallback(async (signal) => {
+  const loadProjects = useCallback(async (signal, { resetPage = false } = {}) => {
     try {
       setLoading(true)
       setError('')
@@ -40,7 +51,9 @@ const ProjectsPage = () => {
       if (!signal?.aborted) {
         setProjects(data.projects || [])
         setStats(data.stats || { total: 0, active: 0, completed: 0 })
-        setCurrentPage(1)
+        if (resetPage) {
+          setCurrentPage(1)
+        }
       }
     } catch (err) {
       if (!signal?.aborted) {
@@ -57,7 +70,7 @@ const ProjectsPage = () => {
     const controller = new AbortController()
 
     queueMicrotask(() => {
-      void loadProjects(controller.signal)
+      void loadProjects(controller.signal, { resetPage: true })
     })
 
     const handleFocus = () => {
@@ -91,6 +104,72 @@ const ProjectsPage = () => {
     setCurrentPage(nextPage)
   }
 
+  const openCreateProject = () => {
+    setCreateError('')
+    setCreateForm(initialProjectForm)
+    setIsCreateOpen(true)
+  }
+
+  const closeCreateProject = () => {
+    if (creating) {
+      return
+    }
+
+    setIsCreateOpen(false)
+    setCreateError('')
+    setCreateForm(initialProjectForm)
+  }
+
+  const handleCreateSubmit = async (event) => {
+    event.preventDefault()
+
+    if (!createForm.name.trim()) {
+      setCreateError('Project name is required')
+      return
+    }
+
+    try {
+      setCreating(true)
+      setCreateError('')
+      await projectApi.create({
+        name: createForm.name.trim(),
+        description: createForm.description.trim(),
+        status: 'Active',
+      })
+      setIsCreateOpen(false)
+      setCreateForm(initialProjectForm)
+      await loadProjects(undefined, { resetPage: true })
+    } catch (err) {
+      setCreateError(err.message || 'Failed to create project')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleProjectStatusChange = async (project, status) => {
+    if (!project?._id || updatingProjectId) {
+      return
+    }
+
+    try {
+      setUpdatingProjectId(project._id)
+      setOpenActionProjectId(null)
+      setError('')
+
+      if (status === 'Archived') {
+        await projectApi.archive(project._id)
+      } else {
+        await projectApi.update(project._id, { status })
+      }
+
+      await loadProjects()
+    } catch (err) {
+      setError(err.message || 'Failed to update project')
+    } finally {
+      setUpdatingProjectId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -99,7 +178,11 @@ const ProjectsPage = () => {
           <p className="text-[15px] text-[var(--color-text-muted)]">Manage and track all your project activities</p>
         </div>
 
-        <button className="inline-flex items-center gap-2 self-start rounded-sm bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)]">
+        <button
+          type="button"
+          onClick={openCreateProject}
+          className="inline-flex items-center gap-2 self-start rounded-sm bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)]"
+        >
           <Plus className="h-4 w-4" />
           New Project
         </button>
@@ -160,10 +243,36 @@ const ProjectsPage = () => {
                     </span>
                   </td>
                   <td className="px-4 py-4 text-sm text-[var(--color-text-muted)]">{formatDate(project.createdAt)}</td>
-                  <td className="px-4 py-4 text-right">
-                    <button className="inline-flex h-8 w-8 items-center justify-center rounded-sm text-[var(--color-text-muted)] hover:bg-[var(--color-muted)] hover:text-[var(--color-text)]">
+                  <td className="relative px-4 py-4 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setOpenActionProjectId((current) => (current === project._id ? null : project._id))}
+                      disabled={updatingProjectId === project._id}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-sm text-[var(--color-text-muted)] hover:bg-[var(--color-muted)] hover:text-[var(--color-text)] disabled:opacity-50"
+                    >
                       <MoreHorizontal className="h-4 w-4" />
                     </button>
+
+                    {openActionProjectId === project._id ? (
+                      <div className="absolute right-4 top-12 z-20 w-44 rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)] p-1 text-left shadow-lg">
+                        <button
+                          type="button"
+                          onClick={() => handleProjectStatusChange(project, 'Completed')}
+                          disabled={project.status === 'Completed'}
+                          className="w-full rounded-sm px-3 py-2 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-muted)] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Mark as Completed
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleProjectStatusChange(project, 'Archived')}
+                          disabled={project.status === 'Archived'}
+                          className="w-full rounded-sm px-3 py-2 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-muted)] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Mark as Archived
+                        </button>
+                      </div>
+                    ) : null}
                   </td>
                 </tr>
               ))}
@@ -179,6 +288,72 @@ const ProjectsPage = () => {
           <Pagination currentPage={safeCurrentPage} totalPages={totalPages} onPageChange={handlePageChange} />
         </div>
       </div>
+
+      {isCreateOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-lg rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl">
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-lg font-semibold text-[var(--color-text)]">Create New Project</p>
+                <p className="text-sm text-[var(--color-text-muted)]">Add a project to your workspace.</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeCreateProject}
+                className="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+              >
+                ✕
+              </button>
+            </div>
+
+            {createError ? <p className="mb-4 text-sm text-red-600">{createError}</p> : null}
+
+            <form className="space-y-4" onSubmit={handleCreateSubmit}>
+              <label className="block space-y-2 text-sm text-[var(--color-text-secondary)]">
+                <span>Project Name</span>
+                <input
+                  type="text"
+                  value={createForm.name}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, name: event.target.value }))}
+                  className="w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+                  placeholder="Enter project name"
+                />
+              </label>
+
+              <label className="block space-y-2 text-sm text-[var(--color-text-secondary)]">
+                <span>Description</span>
+                <textarea
+                  value={createForm.description}
+                  onChange={(event) => setCreateForm((prev) => ({ ...prev, description: event.target.value }))}
+                  className="min-h-[100px] w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+                  placeholder="Enter project description"
+                />
+              </label>
+
+              <p className="rounded-sm bg-[var(--color-muted)] px-3 py-2 text-sm text-[var(--color-text-muted)]">
+                New projects are created with <span className="font-semibold text-[var(--color-text)]">Active</span> status.
+              </p>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeCreateProject}
+                  className="rounded-sm border border-[var(--color-border)] px-4 py-2 text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="rounded-sm bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
+                >
+                  {creating ? 'Creating...' : 'Create Project'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
