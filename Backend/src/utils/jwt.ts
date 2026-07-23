@@ -3,6 +3,7 @@ import { JWT_ACCESS_SECRET, JWT_REFRESH_SECRET, ACCESS_TOKEN_EXPIRES_IN, REFRESH
 
 export interface JwtPayloadData {
   userId: string;
+  rememberMe?: boolean;
 }
 
 export function signAccessToken(payload: JwtPayloadData) {

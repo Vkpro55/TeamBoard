@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { authApi } from '../api/auth';
+import { getAccessToken } from '../api/client';
 import { AuthContext } from './AuthContext';
 
 export const AuthProvider = ({ children }) => {
@@ -15,18 +16,23 @@ export const AuthProvider = ({ children }) => {
 
         const restoreSession = async () => {
             try {
-                const storedToken = localStorage.getItem('accessToken');
-                if (!storedToken) {
-                    if (!isCancelled) {
-                        setUser(null);
-                        setLoading(false);
+                const storedToken = getAccessToken();
+                if (storedToken) {
+                    try {
+                        const { user: currentUser } = await authApi.me();
+                        if (!isCancelled) {
+                            setUser(currentUser);
+                            setError('');
+                        }
+                        return;
+                    } catch {
+                        // Fall through and try to refresh the session from the refresh cookie.
                     }
-                    return;
                 }
 
-                const { user: currentUser } = await authApi.me();
+                const { user: refreshedUser } = await authApi.refresh();
                 if (!isCancelled) {
-                    setUser(currentUser);
+                    setUser(refreshedUser);
                     setError('');
                 }
             } catch {
@@ -73,9 +79,7 @@ export const AuthProvider = ({ children }) => {
         setError('');
 
         try {
-            const data = await authApi.signup(payload);
-            setUser(data.user);
-            return data;
+            return await authApi.signup(payload);
         } catch (err) {
             setError(err.message);
             throw err;
@@ -99,6 +103,10 @@ export const AuthProvider = ({ children }) => {
         }
     }, []);
 
+    const updateCurrentUser = useCallback((updatedUser) => {
+        setUser(updatedUser);
+    }, []);
+
     const value = useMemo(() => ({
         user,
         loading,
@@ -106,8 +114,9 @@ export const AuthProvider = ({ children }) => {
         login,
         signup,
         logout,
+        updateCurrentUser,
         isAuthenticated: Boolean(user),
-    }), [user, loading, error, login, signup, logout]);
+    }), [user, loading, error, login, signup, logout, updateCurrentUser]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

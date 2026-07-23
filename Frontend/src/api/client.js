@@ -1,16 +1,25 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
-let accessToken = localStorage.getItem('accessToken');
+const ACCESS_TOKEN_KEY = 'accessToken';
 
-export const setAccessToken = (token) => {
+const getStoredAccessToken = () => localStorage.getItem(ACCESS_TOKEN_KEY) || sessionStorage.getItem(ACCESS_TOKEN_KEY);
+
+let accessToken = getStoredAccessToken();
+
+export const setAccessToken = (token, { rememberMe = false } = {}) => {
   accessToken = token;
 
   if (token) {
-    localStorage.setItem('accessToken', token);
+    const storage = rememberMe ? localStorage : sessionStorage;
+    const otherStorage = rememberMe ? sessionStorage : localStorage;
+
+    storage.setItem(ACCESS_TOKEN_KEY, token);
+    otherStorage.removeItem(ACCESS_TOKEN_KEY);
     return;
   }
 
-  localStorage.removeItem('accessToken');
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  sessionStorage.removeItem(ACCESS_TOKEN_KEY);
 };
 
 export const getAccessToken = () => accessToken;
@@ -36,10 +45,10 @@ export const apiClient = async (endpoint, options = {}) => {
   };
 
   if (body !== undefined) {
-    config.body = JSON.stringify(body);
+    config.body = body instanceof FormData ? body : JSON.stringify(body);
   }
 
-  if (body !== undefined && !headers['Content-Type']) {
+  if (body !== undefined && !(body instanceof FormData) && !headers['Content-Type']) {
     config.headers['Content-Type'] = 'application/json';
   }
 

@@ -17,7 +17,7 @@ const LoginPage = () => {
     event.preventDefault()
 
     try {
-      await login({ email, password })
+      await login({ email, password, rememberMe: remember })
       navigate('/')
     } catch {
       // error is handled by context

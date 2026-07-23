@@ -2,10 +2,13 @@ import TextInput from '../Form/TextInput'
 import Profile from '../../assets/profile.png'
 import { LogOut, Search, LayoutDashboard, Folder, ListChecks, User } from 'lucide-react'
 import SidebarItem from './SidebarItem'
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
 
 const AppLayout = () => {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { user, logout, loading } = useAuth()
   const searchConfig = {
     '/dashboard': 'Search projects...',
     '/projects': 'Search projects...',
@@ -14,6 +17,16 @@ const AppLayout = () => {
 
   const showSearch = location.pathname !== '/profile'
   const searchPlaceholder = searchConfig[location.pathname] ?? 'Search...'
+  const profileImage = user?.profilePic || Profile
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      navigate('/login', { replace: true })
+    } catch {
+      // AuthContext stores the error; keep the user on the current page if logout fails.
+    }
+  }
 
   return (
     <div className="relative min-h-screen bg-[var(--color-background)] text-[var(--color-text)]">
@@ -44,9 +57,13 @@ const AppLayout = () => {
           ) : null}
         </div>
 
-        <div className="h-[40px] w-[40px] rounded-full">
-          <img src={Profile} alt="Profile Pic" className="h-full w-full object-cover" />
-        </div>
+        <Link
+          to="/profile"
+          aria-label="Open profile page"
+          className="h-[40px] w-[40px] overflow-hidden rounded-full border border-[var(--color-border)] transition hover:ring-2 hover:ring-[var(--color-primary)]"
+        >
+          <img src={profileImage} alt="Profile Pic" className="h-full w-full object-cover" />
+        </Link>
       </header>
 
       {/* Main Section */}
@@ -59,10 +76,15 @@ const AppLayout = () => {
             <SidebarItem to="/profile" icon={User} label="Profile" />
           </div>
 
-          <div className="flex items-center gap-2 text-[var(--color-text-muted)] hover:text-black">
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loading}
+            className="flex items-center gap-2 rounded-sm px-4 py-3 text-left text-sm font-medium text-[var(--color-text-muted)] transition-all duration-200 hover:bg-blue-100 hover:text-[var(--color-text)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
             <LogOut className="h-4 w-4" />
-            Logout
-          </div>
+            {loading ? 'Logging out...' : 'Logout'}
+          </button>
         </aside>
 
         <main className="ml-[240px] flex-1 p-6">

@@ -22,7 +22,7 @@ const SignupPage = () => {
 
     try {
       await signup({ email, password })
-      navigate('/')
+      navigate('/login', { replace: true })
     } catch {
       // error is handled by context
     }

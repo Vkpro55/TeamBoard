@@ -8,7 +8,14 @@ const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',// send it to over HTTPS only in production
   sameSite: 'lax' as const,
-  maxAge: 30 * 24 * 60 * 60 * 1000,
+};
+
+const REFRESH_COOKIE_MAX_AGE = 30 * 24 * 60 * 60 * 1000;
+
+const REFRESH_COOKIE_CLEAR_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
 };
 
 function buildUserResponse(user: IUser) {
@@ -20,12 +27,19 @@ function buildUserResponse(user: IUser) {
   };
 }
 
-async function createTokensForUser(user: IUser) {
+async function createTokensForUser(user: IUser, rememberMe = false) {
   const accessToken = signAccessToken({ userId: user._id.toString() });
-  const refreshToken = signRefreshToken({ userId: user._id.toString() });
+  const refreshToken = signRefreshToken({ userId: user._id.toString(), rememberMe });
   const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
   await User.findByIdAndUpdate(user._id, { refreshToken: refreshTokenHash } );
   return { accessToken, refreshToken };
+}
+
+function getRefreshCookieOptions(rememberMe = false) {
+  return {
+    ...REFRESH_COOKIE_OPTIONS,
+    ...(rememberMe ? { maxAge: REFRESH_COOKIE_MAX_AGE } : {}),
+  };
 }
 
 export async function signup(req: Request, res: Response) {
@@ -42,11 +56,8 @@ export async function signup(req: Request, res: Response) {
   }
 
   const user = await User.create({ email, password, username, profilePic });
-  const { accessToken, refreshToken } = await createTokensForUser(user);
 
-  res.cookie('refresh_token', refreshToken, REFRESH_COOKIE_OPTIONS);
   return res.status(201).json({
-    accessToken,
     user: buildUserResponse(user),
   });
 }
@@ -57,42 +68,50 @@ export async function login(req: Request, res: Response) {
     return res.status(400).json({ error: parseResult.error.flatten().fieldErrors });
   }
 
-  const { email, password } = parseResult.data;
+  const { email, password, rememberMe } = parseResult.data;
   const user = await User.findOne({ email });
   if (!user || !(await user.comparePassword(password))) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  const { accessToken, refreshToken } = await createTokensForUser(user);
-  res.cookie('refresh_token', refreshToken, REFRESH_COOKIE_OPTIONS);
+  const { accessToken, refreshToken } = await createTokensForUser(user, rememberMe);
+  res.cookie('refresh_token', refreshToken, getRefreshCookieOptions(rememberMe));
 
   return res.status(200).json({
     accessToken,
+    rememberMe,
     user: buildUserResponse(user),
   });
 }
 
 export async function logout(req: Request, res: Response) {
   const token = req.cookies?.refresh_token;
-  if (token) {
-    try {
-      const payload = verifyRefreshToken(token);
-      const user = await User.findById(payload.userId);
-      if (user) {
-        user.refreshToken = undefined;
-        await user.save({ validateBeforeSave: false });
-      }
-    } catch {
-      // Ignore invalid refresh token during logout.
-    }
+
+  const sendLogoutSuccess = () => {
+    res.clearCookie('refresh_token', REFRESH_COOKIE_CLEAR_OPTIONS);
+    return res.status(200).json({ msg: 'Logged out successfully' });
+  };
+
+  if (!token) {
+    return sendLogoutSuccess();
   }
 
-  res.clearCookie('refresh_token', {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-  });
-  return res.status(204).send();
+  let userId: string;
+  try {
+    const payload = verifyRefreshToken(token);
+    userId = payload.userId;
+  } catch {
+    // Logout should still clear the cookie when the refresh token is stale or malformed.
+    return sendLogoutSuccess();
+  }
+
+  try {
+    await User.findByIdAndUpdate(userId, { $unset: { refreshToken: '' } });
+    return sendLogoutSuccess();
+  } catch (error) {
+    res.clearCookie('refresh_token', REFRESH_COOKIE_CLEAR_OPTIONS);
+    return res.status(500).json({ error: 'Failed to log out. Please try again.' });
+  }
 }
 
 export async function refreshAuth(req: Request, res: Response) {
@@ -108,11 +127,12 @@ export async function refreshAuth(req: Request, res: Response) {
       return res.status(401).json({ error: 'Refresh token invalid or expired' });
     }
 
-    const { accessToken, refreshToken } = await createTokensForUser(user);
-    res.cookie('refresh_token', refreshToken, REFRESH_COOKIE_OPTIONS);
+    const { accessToken, refreshToken } = await createTokensForUser(user, Boolean(payload.rememberMe));
+    res.cookie('refresh_token', refreshToken, getRefreshCookieOptions(Boolean(payload.rememberMe)));
 
     return res.status(200).json({
       accessToken,
+      rememberMe: Boolean(payload.rememberMe),
       user: buildUserResponse(user),
     });
   } catch (error) {

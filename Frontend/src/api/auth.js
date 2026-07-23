@@ -2,22 +2,21 @@ import { apiClient, setAccessToken } from './client';
 
 export const authApi = {
   signup: async (payload) => {
-    const data = await apiClient('/api/auth/signup', {
+    return apiClient('/api/auth/signup', {
       method: 'POST',
       body: payload,
+      auth: false,
     });
-
-    setAccessToken(data.accessToken);
-    return data;
   },
 
   login: async (payload) => {
+    const { rememberMe = false } = payload;
     const data = await apiClient('/api/auth/login', {
       method: 'POST',
       body: payload,
     });
 
-    setAccessToken(data.accessToken);
+    setAccessToken(data.accessToken, { rememberMe });
     return data;
   },
 
@@ -34,7 +33,7 @@ export const authApi = {
       method: 'GET',
     });
 
-    setAccessToken(data.accessToken);
+    setAccessToken(data.accessToken, { rememberMe: data.rememberMe });
     return data;
   },
 
