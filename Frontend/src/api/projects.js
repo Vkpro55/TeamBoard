@@ -12,6 +12,10 @@ export const projectApi = {
       method: 'PUT',
       body: payload,
     }),
+  delete: (projectId) =>
+    apiClient(`/api/projects/${projectId}`, {
+      method: 'DELETE',
+    }),
   archive: (projectId) =>
     apiClient(`/api/projects/${projectId}/archive`, {
       method: 'PATCH',

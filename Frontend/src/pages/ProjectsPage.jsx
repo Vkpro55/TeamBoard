@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { projectApi } from '../api/projects'
 import Pagination from '../components/Pagination'
 import ProjectStatCard from '../components/Main/ProjectStatCard'
+import { useToast } from '../hooks/useToast'
 
 const statusClasses = {
   Active: 'bg-blue-100 text-blue-600 px-4 py-1 rounded-none',
@@ -28,7 +29,14 @@ const initialProjectForm = {
   description: '',
 }
 
+const getInitialEditState = () => ({
+  projectId: null,
+  name: '',
+  description: '',
+})
+
 const ProjectsPage = () => {
+  const toast = useToast()
   const pageSize = 5
   const [currentPage, setCurrentPage] = useState(1)
   const [projects, setProjects] = useState([])
@@ -41,6 +49,8 @@ const ProjectsPage = () => {
   const [creating, setCreating] = useState(false)
   const [openActionProjectId, setOpenActionProjectId] = useState(null)
   const [updatingProjectId, setUpdatingProjectId] = useState(null)
+  const [editForm, setEditForm] = useState(getInitialEditState)
+  const [deleteProjectId, setDeleteProjectId] = useState(null)
 
   const loadProjects = useCallback(async (signal, { resetPage = false } = {}) => {
     try {
@@ -107,7 +117,23 @@ const ProjectsPage = () => {
   const openCreateProject = () => {
     setCreateError('')
     setCreateForm(initialProjectForm)
+    setEditForm(getInitialEditState())
     setIsCreateOpen(true)
+  }
+
+  const openEditProject = (project) => {
+    setCreateError('')
+    setCreateForm({
+      name: project.name || '',
+      description: project.description || '',
+    })
+    setEditForm({
+      projectId: project._id,
+      name: project.name || '',
+      description: project.description || '',
+    })
+    setIsCreateOpen(true)
+    setOpenActionProjectId(null)
   }
 
   const closeCreateProject = () => {
@@ -118,6 +144,7 @@ const ProjectsPage = () => {
     setIsCreateOpen(false)
     setCreateError('')
     setCreateForm(initialProjectForm)
+    setEditForm(getInitialEditState())
   }
 
   const handleCreateSubmit = async (event) => {
@@ -131,16 +158,27 @@ const ProjectsPage = () => {
     try {
       setCreating(true)
       setCreateError('')
-      await projectApi.create({
-        name: createForm.name.trim(),
-        description: createForm.description.trim(),
-        status: 'Active',
-      })
+      if (editForm.projectId) {
+        await projectApi.update(editForm.projectId, {
+          name: createForm.name.trim(),
+          description: createForm.description.trim(),
+        })
+        toast.success('Project updated successfully')
+      } else {
+        await projectApi.create({
+          name: createForm.name.trim(),
+          description: createForm.description.trim(),
+          status: 'Active',
+        })
+        toast.success('Project created successfully')
+      }
       setIsCreateOpen(false)
       setCreateForm(initialProjectForm)
+      setEditForm(getInitialEditState())
       await loadProjects(undefined, { resetPage: true })
     } catch (err) {
-      setCreateError(err.message || 'Failed to create project')
+      setCreateError(err.message || 'Failed to save project')
+      toast.error(err.message || 'Failed to save project')
     } finally {
       setCreating(false)
     }
@@ -162,11 +200,39 @@ const ProjectsPage = () => {
         await projectApi.update(project._id, { status })
       }
 
+      toast.success(`Project marked as ${status.toLowerCase()}`)
       await loadProjects()
     } catch (err) {
       setError(err.message || 'Failed to update project')
+      toast.error(err.message || 'Failed to update project')
     } finally {
       setUpdatingProjectId(null)
+    }
+  }
+
+  const handleDeleteProject = async (project) => {
+    if (!project?._id || deleteProjectId) {
+      return
+    }
+
+    const confirmed = window.confirm(`Delete project "${project.name}"? This cannot be undone.`)
+    if (!confirmed) {
+      setOpenActionProjectId(null)
+      return
+    }
+
+    try {
+      setDeleteProjectId(project._id)
+      setOpenActionProjectId(null)
+      setError('')
+      await projectApi.delete(project._id)
+      toast.success('Project deleted successfully')
+      await loadProjects()
+    } catch (err) {
+      setError(err.message || 'Failed to delete project')
+      toast.error(err.message || 'Failed to delete project')
+    } finally {
+      setDeleteProjectId(null)
     }
   }
 
@@ -257,6 +323,13 @@ const ProjectsPage = () => {
                       <div className="absolute right-4 top-12 z-20 w-44 rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)] p-1 text-left shadow-lg">
                         <button
                           type="button"
+                          onClick={() => openEditProject(project)}
+                          className="w-full rounded-sm px-3 py-2 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-muted)]"
+                        >
+                          Update Project
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleProjectStatusChange(project, 'Completed')}
                           disabled={project.status === 'Completed'}
                           className="w-full rounded-sm px-3 py-2 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-muted)] disabled:cursor-not-allowed disabled:opacity-50"
@@ -270,6 +343,14 @@ const ProjectsPage = () => {
                           className="w-full rounded-sm px-3 py-2 text-left text-sm text-[var(--color-text)] hover:bg-[var(--color-muted)] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           Mark as Archived
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteProject(project)}
+                          disabled={deleteProjectId === project._id}
+                          className="w-full rounded-sm px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Delete Project
                         </button>
                       </div>
                     ) : null}
@@ -294,8 +375,12 @@ const ProjectsPage = () => {
           <div className="w-full max-w-lg rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-xl">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <p className="text-lg font-semibold text-[var(--color-text)]">Create New Project</p>
-                <p className="text-sm text-[var(--color-text-muted)]">Add a project to your workspace.</p>
+                <p className="text-lg font-semibold text-[var(--color-text)]">
+                  {editForm.projectId ? 'Update Project' : 'Create New Project'}
+                </p>
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  {editForm.projectId ? 'Edit the selected project details.' : 'Add a project to your workspace.'}
+                </p>
               </div>
               <button
                 type="button"
@@ -347,7 +432,7 @@ const ProjectsPage = () => {
                   disabled={creating}
                   className="rounded-sm bg-[var(--color-primary)] px-4 py-2 text-sm font-semibold text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)] disabled:opacity-60"
                 >
-                  {creating ? 'Creating...' : 'Create Project'}
+                  {creating ? (editForm.projectId ? 'Updating...' : 'Creating...') : (editForm.projectId ? 'Update Project' : 'Create Project')}
                 </button>
               </div>
             </form>
