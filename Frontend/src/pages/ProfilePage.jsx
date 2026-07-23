@@ -1,5 +1,7 @@
 import { Building2, CalendarDays, LockKeyhole, MapPin, Pencil } from 'lucide-react'
 import Profile from '../assets/profile.png'
+import PrimaryButton from '../components/Form/PrimaryButton'
+import TextInput from '../components/Form/TextInput'
 
 const profileDetails = [
   { icon: Building2, label: 'Engineering Lead at TeamBoard' },
@@ -27,10 +29,10 @@ const ProfilePage = () => {
               <p className="text-[15px] text-[var(--color-text-secondary)]">alex.rivera@teamboard.io</p>
             </div>
 
-            <button className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-sm bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)]">
+            <PrimaryButton className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-sm bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)]">
               <Pencil className="h-4 w-4" />
               Edit Profile
-            </button>
+            </PrimaryButton>
           </div>
 
           <div className="mt-6 space-y-4 border-t border-[var(--color-border-light)] pt-6">
@@ -56,36 +58,48 @@ const ProfilePage = () => {
           <form className="mt-6 space-y-4">
             <label className="block text-sm text-[var(--color-text-secondary)]">
               Current Password
-              <input
+              <TextInput
+                id="current-password"
+                name="currentPassword"
                 type="password"
-                className="mt-2 h-10 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+                value={''}
+                onChange={''}
+                className="mt-2 h-10 bg-[var(--color-background)] text-[var(--color-text)] placeholder:not-italic focus:border-[var(--color-ring)]"
               />
             </label>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block text-sm text-[var(--color-text-secondary)]">
                 New Password
-                <input
+                <TextInput
+                  id="new-password"
+                  name="newPassword"
                   type="password"
-                  className="mt-2 h-10 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+                  value={''}
+                  onChange={''}
+                  className="mt-2 h-10 bg-[var(--color-background)] text-[var(--color-text)] placeholder:not-italic focus:border-[var(--color-ring)]"
                 />
               </label>
 
               <label className="block text-sm text-[var(--color-text-secondary)]">
                 Confirm New Password
-                <input
+                <TextInput
+                  id="confirm-new-password"
+                  name="confirmNewPassword"
                   type="password"
-                  className="mt-2 h-10 w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+                  value={''}
+                  onChange={''}
+                  className="mt-2 h-10 bg-[var(--color-background)] text-[var(--color-text)] placeholder:not-italic focus:border-[var(--color-ring)]"
                 />
               </label>
             </div>
 
-            <button
+            <PrimaryButton
               type="button"
               className="inline-flex rounded-sm bg-[var(--color-primary)] px-8 py-2.5 text-sm font-semibold text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)]"
             >
               Update Password
-            </button>
+            </PrimaryButton>
           </form>
         </section>
       </div>
