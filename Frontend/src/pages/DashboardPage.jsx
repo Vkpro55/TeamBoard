@@ -63,7 +63,7 @@ const DashboardPage = () => {
       <div className="flex flex-col gap-2">
         <div>
           <p className="text-[length:var(--text-h2)] font-semibold text-[var(--color-text)]">Welcome back, Alex.</p>
-          <p className="text-[15px] text-[var(--color-text-muted)]">Here&apos;s what&apos;s happening with your projects today.</p>
+          <p className="mt-1 text-[15px] text-[var(--color-text-muted)]">Here&apos;s what&apos;s happening with your projects today.</p>
         </div>
       </div>
 
