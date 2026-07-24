@@ -1,40 +1,9 @@
+import { useCallback, useEffect, useState } from 'react'
 import { Check, MoreHorizontal, Plus } from 'lucide-react'
+import { taskApi } from '../api/tasks'
 import Pagination from '../components/Pagination'
 
-const tasks = [
-  {
-    title: 'Implement User Authentication',
-    priority: 'High',
-    status: 'In Progress',
-    dueDate: 'Oct 24, 2023',
-    project: 'Auth Engine',
-    completed: false,
-  },
-  {
-    title: 'Update API Documentation',
-    priority: 'Medium',
-    status: 'To Do',
-    dueDate: 'Oct 28, 2023',
-    project: 'Platform Core',
-    completed: false,
-  },
-  {
-    title: 'Design System Audit',
-    priority: 'Low',
-    status: 'Done',
-    dueDate: 'Oct 20, 2023',
-    project: 'Branding',
-    completed: true,
-  },
-  {
-    title: 'Mobile App Crash Investigation',
-    priority: 'High',
-    status: 'Review',
-    dueDate: 'Oct 25, 2023',
-    project: 'Mobile Dev',
-    completed: false,
-  },
-]
+const pageSize = 5
 
 const priorityClasses = {
   High: 'bg-red-100 text-red-600',
@@ -44,14 +13,75 @@ const priorityClasses = {
 
 const statusClasses = {
   'In Progress': 'bg-blue-100 text-blue-700',
-  'To Do': 'bg-gray-100 text-gray-600',
-  Done: 'bg-green-100 text-green-700',
-  Review: 'bg-indigo-100 text-indigo-700',
+  Todo: 'bg-gray-100 text-gray-600',
+  Completed: 'bg-green-100 text-green-700',
+}
+
+const formatDate = (value) => {
+  if (!value) {
+    return 'No due date'
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(value))
 }
 
 const TasksPage = () => {
-  const currentPage = 1
-  const totalPages = 3
+  const [currentPage, setCurrentPage] = useState(1)
+  const [tasks, setTasks] = useState([])
+  const [pagination, setPagination] = useState({ page: 1, limit: pageSize, totalItems: 0, totalPages: 1 })
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const loadTasks = useCallback(async (signal, { page = currentPage } = {}) => {
+    try {
+      setLoading(true)
+      setError('')
+
+      const data = await taskApi.list({ page, limit: pageSize })
+
+      if (!signal?.aborted) {
+        const nextPagination = data.pagination || { page, limit: pageSize, totalItems: data.tasks?.length || 0, totalPages: 1 }
+        setTasks(data.tasks || [])
+        setPagination(nextPagination)
+        setCurrentPage(Math.min(nextPagination.page, nextPagination.totalPages))
+      }
+    } catch (err) {
+      if (!signal?.aborted) {
+        setError(err.message || 'Failed to load tasks')
+      }
+    } finally {
+      if (!signal?.aborted) {
+        setLoading(false)
+      }
+    }
+  }, [currentPage])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    queueMicrotask(() => {
+      void loadTasks(controller.signal)
+    })
+
+    return () => controller.abort()
+  }, [loadTasks])
+
+  const totalPages = pagination.totalPages
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+  const startIndex = (safeCurrentPage - 1) * pageSize
+  const endIndex = startIndex + tasks.length
+
+  const handlePageChange = (page) => {
+    const nextPage = Math.min(Math.max(page, 1), totalPages)
+
+    if (nextPage !== safeCurrentPage) {
+      setCurrentPage(nextPage)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -117,13 +147,31 @@ const TasksPage = () => {
               </tr>
             </thead>
             <tbody>
-              {tasks.map((task, index) => (
-                <tr key={task.title} className={index !== tasks.length - 1 ? 'border-b border-[var(--color-border-light)]' : ''}>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">
+                    Loading tasks...
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-[var(--color-error)]">
+                    {error}
+                  </td>
+                </tr>
+              ) : tasks.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">
+                    No tasks found.
+                  </td>
+                </tr>
+              ) : tasks.map((task, index) => (
+                <tr key={task._id || task.title} className={index !== tasks.length - 1 ? 'border-b border-[var(--color-border-light)]' : ''}>
                   <td className="px-4 py-4">
                     <button
-                      aria-label={task.completed ? 'Mark task incomplete' : 'Mark task complete'}
+                      aria-label={task.status === 'Completed' ? 'Mark task incomplete' : 'Mark task complete'}
                       className={`inline-flex h-4 w-4 items-center justify-center rounded-sm border ${
-                        task.completed
+                        task.status === 'Completed'
                           ? 'border-[var(--color-success)] bg-[var(--color-success-bg)] text-[var(--color-success)]'
                           : 'border-[var(--color-border)] bg-[var(--color-surface)] text-transparent hover:border-[var(--color-text-muted)] hover:text-[var(--color-text-muted)]'
                       }`}
@@ -140,10 +188,10 @@ const TasksPage = () => {
                     </span>
                   </td>
                   <td className="px-4 py-4">
-                    <span className={`${statusClasses[task.status]} rounded-sm px-3 py-1 text-[12px] font-medium`}>{task.status}</span>
+                    <span className={`${statusClasses[task.status] || 'bg-gray-100 text-gray-600'} rounded-sm px-3 py-1 text-[12px] font-medium`}>{task.status}</span>
                   </td>
-                  <td className="px-4 py-4 text-sm text-[var(--color-text-muted)]">{task.dueDate}</td>
-                  <td className="px-4 py-4 text-sm text-[var(--color-text-muted)]">{task.project}</td>
+                  <td className="px-4 py-4 text-sm text-[var(--color-text-muted)]">{formatDate(task.dueDate)}</td>
+                  <td className="px-4 py-4 text-sm text-[var(--color-text-muted)]">{task.project?.name || 'Unknown project'}</td>
                   <td className="px-4 py-4 text-right">
                     <button className="inline-flex h-8 w-8 items-center justify-center rounded-sm text-[var(--color-text-muted)] hover:bg-[var(--color-muted)] hover:text-[var(--color-text)]">
                       <MoreHorizontal className="h-4 w-4" />
@@ -156,9 +204,11 @@ const TasksPage = () => {
         </div>
 
         <div className="flex flex-col gap-3 border-t border-[var(--color-border-light)] p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-[var(--color-text-muted)]">Showing 4 of 24 tasks</p>
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Showing {pagination.totalItems ? startIndex + 1 : 0}–{endIndex} of {pagination.totalItems} tasks
+          </p>
 
-          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={() => {}} />
+          <Pagination currentPage={safeCurrentPage} totalPages={totalPages} onPageChange={handlePageChange} />
         </div>
       </div>
     </div>

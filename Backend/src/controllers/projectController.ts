@@ -2,7 +2,7 @@ import { type Request, type Response } from 'express';
 import { Types } from 'mongoose';
 import Project from '../models/projectModel';
 import Task from '../models/taskModel';
-import { createProjectSchema, updateProjectSchema } from '../schemas/projectSchemas';
+import { createProjectSchema, listProjectsQuerySchema, updateProjectSchema } from '../schemas/projectSchemas';
 
 export async function listProjects(req: Request, res: Response) {
   if (!req.user) {
@@ -11,8 +11,17 @@ export async function listProjects(req: Request, res: Response) {
 
   const owner = new Types.ObjectId(req.user.id);
 
-  const [projects, statusCounts] = await Promise.all([
-    Project.find({ owner: req.user.id }).sort({ createdAt: -1 }),
+  const parseResult = listProjectsQuerySchema.safeParse(req.query);
+  if (!parseResult.success) {
+    return res.status(400).json({ error: parseResult.error.flatten().fieldErrors });
+  }
+
+  const { page, limit } = parseResult.data;
+  const skip = (page - 1) * limit;
+
+  const [projects, totalItems, statusCounts] = await Promise.all([
+    Project.find({ owner: req.user.id }).sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Project.countDocuments({ owner: req.user.id }),
     Project.aggregate<{ _id: string; count: number }>([
       { $match: { owner } },
       { $group: { _id: '$status', count: { $sum: 1 } } },
@@ -27,9 +36,15 @@ export async function listProjects(req: Request, res: Response) {
   return res.status(200).json({
     projects,
     stats: {
-      total: projects.length,
+      total: totalItems,
       active: countByStatus.Active ?? 0,
       completed: countByStatus.Completed ?? 0,
+    },
+    pagination: {
+      page,
+      limit,
+      totalItems,
+      totalPages: Math.max(1, Math.ceil(totalItems / limit)),
     },
   });
 }

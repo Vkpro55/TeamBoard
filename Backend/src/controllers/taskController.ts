@@ -1,7 +1,7 @@
 import { type Request, type Response } from 'express';
 import Project from '../models/projectModel';
 import Task from '../models/taskModel';
-import { createTaskSchema, updateTaskSchema } from '../schemas/taskSchemas';
+import { createTaskSchema, listTasksQuerySchema, updateTaskSchema } from '../schemas/taskSchemas';
 
 function getParam(req: Request, name: 'projectId' | 'taskId') {
   const value = req.params[name];
@@ -12,6 +12,42 @@ async function getOwnedProject(projectId: string, userId: string) {
   return Project.findOne({
     _id: projectId,
     owner: userId,
+  });
+}
+
+export async function listTasks(req: Request, res: Response) {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  const parseResult = listTasksQuerySchema.safeParse(req.query);
+  if (!parseResult.success) {
+    return res.status(400).json({ error: parseResult.error.flatten().fieldErrors });
+  }
+
+  const { page, limit } = parseResult.data;
+  const skip = (page - 1) * limit;
+  const projects = await Project.find({ owner: req.user.id }).select('_id');
+  const projectIds = projects.map((project) => project._id);
+
+  const [tasks, totalItems] = await Promise.all([
+    Task.find({ project: { $in: projectIds } })
+      .sort({ dueDate: 1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate('project', 'id name')
+      .populate('assignedTo', 'id username email'),
+    Task.countDocuments({ project: { $in: projectIds } }),
+  ]);
+
+  return res.status(200).json({
+    tasks,
+    pagination: {
+      page,
+      limit,
+      totalItems,
+      totalPages: Math.max(1, Math.ceil(totalItems / limit)),
+    },
   });
 }
 

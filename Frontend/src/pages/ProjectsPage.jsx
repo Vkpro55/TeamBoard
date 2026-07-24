@@ -41,6 +41,7 @@ const ProjectsPage = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [projects, setProjects] = useState([])
   const [stats, setStats] = useState({ total: 0, active: 0, completed: 0 })
+  const [pagination, setPagination] = useState({ page: 1, limit: pageSize, totalItems: 0, totalPages: 1 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -52,18 +53,18 @@ const ProjectsPage = () => {
   const [editForm, setEditForm] = useState(getInitialEditState)
   const [deleteProjectId, setDeleteProjectId] = useState(null)
 
-  const loadProjects = useCallback(async (signal, { resetPage = false } = {}) => {
+  const loadProjects = useCallback(async (signal, { page = currentPage } = {}) => {
     try {
       setLoading(true)
       setError('')
-      const data = await projectApi.list()
+      const data = await projectApi.list({ page, limit: pageSize })
 
       if (!signal?.aborted) {
         setProjects(data.projects || [])
         setStats(data.stats || { total: 0, active: 0, completed: 0 })
-        if (resetPage) {
-          setCurrentPage(1)
-        }
+        const nextPagination = data.pagination || { page, limit: pageSize, totalItems: data.projects?.length || 0, totalPages: 1 }
+        setPagination(nextPagination)
+        setCurrentPage(Math.min(nextPagination.page, nextPagination.totalPages))
       }
     } catch (err) {
       if (!signal?.aborted) {
@@ -74,13 +75,13 @@ const ProjectsPage = () => {
         setLoading(false)
       }
     }
-  }, [])
+  }, [currentPage])
 
   useEffect(() => {
     const controller = new AbortController()
 
     queueMicrotask(() => {
-      void loadProjects(controller.signal, { resetPage: true })
+      void loadProjects(controller.signal)
     })
 
     const handleFocus = () => {
@@ -104,10 +105,10 @@ const ProjectsPage = () => {
     [stats],
   )
 
-  const totalPages = Math.max(1, Math.ceil(projects.length / pageSize))
+  const totalPages = pagination.totalPages
   const safeCurrentPage = Math.min(currentPage, totalPages)
   const startIndex = (safeCurrentPage - 1) * pageSize
-  const paginatedProjects = projects.slice(startIndex, startIndex + pageSize)
+  const endIndex = startIndex + projects.length
 
   const handlePageChange = (page) => {
     const nextPage = Math.min(Math.max(page, 1), totalPages)
@@ -175,7 +176,7 @@ const ProjectsPage = () => {
       setIsCreateOpen(false)
       setCreateForm(initialProjectForm)
       setEditForm(getInitialEditState())
-      await loadProjects(undefined, { resetPage: true })
+      await loadProjects(undefined, { page: 1 })
     } catch (err) {
       setCreateError(err.message || 'Failed to save project')
       toast.error(err.message || 'Failed to save project')
@@ -201,7 +202,7 @@ const ProjectsPage = () => {
       }
 
       toast.success(`Project marked as ${status.toLowerCase()}`)
-      await loadProjects()
+      await loadProjects(undefined, { page: safeCurrentPage })
     } catch (err) {
       setError(err.message || 'Failed to update project')
       toast.error(err.message || 'Failed to update project')
@@ -227,7 +228,7 @@ const ProjectsPage = () => {
       setError('')
       await projectApi.delete(project._id)
       toast.success('Project deleted successfully')
-      await loadProjects()
+      await loadProjects(undefined, { page: projects.length === 1 && safeCurrentPage > 1 ? safeCurrentPage - 1 : safeCurrentPage })
     } catch (err) {
       setError(err.message || 'Failed to delete project')
       toast.error(err.message || 'Failed to delete project')
@@ -288,16 +289,16 @@ const ProjectsPage = () => {
                     Loading projects...
                   </td>
                 </tr>
-              ) : paginatedProjects.length === 0 ? (
+              ) : projects.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">
                     No projects found.
                   </td>
                 </tr>
-              ) : paginatedProjects.map((project, index) => (
+              ) : projects.map((project, index) => (
                 <tr
                   key={project._id || project.name}
-                  className={index !== paginatedProjects.length - 1 ? 'border-b border-[var(--color-border-light)]' : ''}
+                  className={index !== projects.length - 1 ? 'border-b border-[var(--color-border-light)]' : ''}
                 >
                   <td className="px-4 py-4">
                     <p className="text-[var(--text-body-sm)] font-semibold text-[var(--color-text)]">{project.name}</p>
@@ -363,7 +364,7 @@ const ProjectsPage = () => {
 
         <div className="flex flex-col gap-3 border-t border-[var(--color-border-light)] p-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-[var(--color-text-muted)]">
-            Showing {projects.length ? startIndex + 1 : 0}–{Math.min(startIndex + pageSize, projects.length)} of {projects.length} projects
+            Showing {pagination.totalItems ? startIndex + 1 : 0}–{endIndex} of {pagination.totalItems} projects
           </p>
 
           <Pagination currentPage={safeCurrentPage} totalPages={totalPages} onPageChange={handlePageChange} />

@@ -1,7 +1,7 @@
 import { apiClient } from './client'
 
 export const projectApi = {
-  list: () => apiClient('/api/projects'),
+  list: ({ page = 1, limit = 5 } = {}) => apiClient(`/api/projects?page=${page}&limit=${limit}`),
   create: (payload) =>
     apiClient('/api/projects', {
       method: 'POST',
