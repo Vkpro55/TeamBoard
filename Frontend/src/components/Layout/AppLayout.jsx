@@ -12,10 +12,9 @@ const AppLayout = () => {
   const searchConfig = {
     '/dashboard': 'Search projects...',
     '/projects': 'Search projects...',
-    '/tasks': 'Search tasks...',
   }
 
-  const showSearch = location.pathname !== '/profile'
+  const showSearch = location.pathname !== '/profile' && location.pathname !== '/tasks'
   const searchPlaceholder = searchConfig[location.pathname] ?? 'Search...'
   const profileImage = user?.profilePic || Profile
 

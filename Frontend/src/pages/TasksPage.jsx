@@ -64,6 +64,7 @@ const TasksPage = () => {
   const [projectsLoading, setProjectsLoading] = useState(false)
   const [taskFilter, setTaskFilter] = useState('All Tasks')
   const [taskFilterValue, setTaskFilterValue] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   const loadTasks = useCallback(async (signal, { page = currentPage } = {}) => {
     try {
@@ -299,6 +300,20 @@ const TasksPage = () => {
     return true
   })
 
+  const visibleTasks = filteredTasks.filter((task) => {
+    if (!searchQuery) {
+      return true
+    }
+    const query = searchQuery.toLowerCase()
+    return (
+      task.title?.toLowerCase().includes(query) ||
+      task.description?.toLowerCase().includes(query) ||
+      task.project?.name?.toLowerCase().includes(query) ||
+      task.priority?.toLowerCase().includes(query) ||
+      task.status?.toLowerCase().includes(query)
+    )
+  })
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -319,6 +334,16 @@ const TasksPage = () => {
 
       <div className="flex flex-col gap-4 rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)] p-4 lg:flex-row lg:items-center lg:justify-end">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+            Search:
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search tasks..."
+              className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)] w-[200px]"
+            />
+          </label>
           <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
             Filter by:
             <select
@@ -411,14 +436,14 @@ const TasksPage = () => {
                     {error}
                   </td>
                 </tr>
-              ) : filteredTasks.length === 0 ? (
+              ) : visibleTasks.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">
-                    No tasks match the selected filter.
+                    No tasks match the selected filter and search.
                   </td>
                 </tr>
-              ) : filteredTasks.map((task, index) => (
-                <tr key={task._id || task.title} className={index !== filteredTasks.length - 1 ? 'border-b border-[var(--color-border-light)]' : ''}>
+              ) : visibleTasks.map((task, index) => (
+                <tr key={task._id || task.title} className={index !== visibleTasks.length - 1 ? 'border-b border-[var(--color-border-light)]' : ''}>
                   <td className="px-4 py-4">
                     <button
                       type="button"
