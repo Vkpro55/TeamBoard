@@ -35,7 +35,7 @@ export async function listTasks(req: Request, res: Response) {
       .sort({ dueDate: 1, createdAt: -1 })
       .skip(skip)
       .limit(limit)
-      .populate('project', 'id name')
+      .populate('project', 'id name status')
       .populate('assignedTo', 'id username email'),
     Task.countDocuments({ project: { $in: projectIds } }),
   ]);
