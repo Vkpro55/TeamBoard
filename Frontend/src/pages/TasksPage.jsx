@@ -21,6 +21,7 @@ const statusClasses = {
 
 const taskStatuses = ['Todo', 'In Progress', 'Completed']
 const taskPriorities = ['Low', 'Medium', 'High']
+const taskFilterOptions = ['All Tasks', 'Priority', 'Due Date', 'Status']
 const initialCreateForm = {
   projectId: '',
   title: '',
@@ -61,6 +62,8 @@ const TasksPage = () => {
   const [createError, setCreateError] = useState('')
   const [projects, setProjects] = useState([])
   const [projectsLoading, setProjectsLoading] = useState(false)
+  const [taskFilter, setTaskFilter] = useState('All Tasks')
+  const [taskFilterValue, setTaskFilterValue] = useState('')
 
   const loadTasks = useCallback(async (signal, { page = currentPage } = {}) => {
     try {
@@ -114,6 +117,11 @@ const TasksPage = () => {
   const refreshCurrentPage = async () => {
     const pageAfterDelete = tasks.length === 1 && safeCurrentPage > 1 ? safeCurrentPage - 1 : safeCurrentPage
     await loadTasks(undefined, { page: pageAfterDelete })
+  }
+
+  const handleFilterChange = (value) => {
+    setTaskFilter(value)
+    setTaskFilterValue('')
   }
 
   const openCreateTask = async () => {
@@ -266,6 +274,31 @@ const TasksPage = () => {
     }
   }
 
+  const filteredTasks = tasks.filter((task) => {
+    if (taskFilter === 'All Tasks') {
+      return true
+    }
+
+    if (taskFilter === 'Priority') {
+      return taskFilterValue ? task.priority === taskFilterValue : true
+    }
+
+    if (taskFilter === 'Status') {
+      return taskFilterValue ? task.status === taskFilterValue : true
+    }
+
+    if (taskFilter === 'Due Date') {
+      if (!taskFilterValue) {
+        return true
+      }
+
+      const dueDate = task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : ''
+      return dueDate === taskFilterValue
+    }
+
+    return true
+  })
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -284,39 +317,65 @@ const TasksPage = () => {
         </button>
       </div>
 
-      <div className="flex flex-col gap-4 rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)] p-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-4 rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)] p-4 lg:flex-row lg:items-center lg:justify-end">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-            Status:
-            <select className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]">
-              <option>All Statuses</option>
-              <option>To Do</option>
-              <option>In Progress</option>
-              <option>Review</option>
-              <option>Done</option>
+            Filter by:
+            <select
+              value={taskFilter}
+              onChange={(event) => handleFilterChange(event.target.value)}
+              className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+            >
+              {taskFilterOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
             </select>
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-            Priority:
-            <select className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]">
-              <option>All Priorities</option>
-              <option>High</option>
-              <option>Medium</option>
-              <option>Low</option>
-            </select>
-          </label>
+          {taskFilter === 'Priority' ? (
+            <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+              Value:
+              <select
+                value={taskFilterValue}
+                onChange={(event) => setTaskFilterValue(event.target.value)}
+                className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+              >
+                <option value="">All</option>
+                {taskPriorities.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {taskFilter === 'Status' ? (
+            <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+              Value:
+              <select
+                value={taskFilterValue}
+                onChange={(event) => setTaskFilterValue(event.target.value)}
+                className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+              >
+                <option value="">All</option>
+                {taskStatuses.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          {taskFilter === 'Due Date' ? (
+            <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+              Date:
+              <input
+                type="date"
+                value={taskFilterValue}
+                onChange={(event) => setTaskFilterValue(event.target.value)}
+                className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+              />
+            </label>
+          ) : null}
         </div>
-
-        <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-          Sort by:
-          <select className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]">
-            <option>Due Date (Soonest)</option>
-            <option>Priority</option>
-            <option>Status</option>
-            <option>Project</option>
-          </select>
-        </label>
       </div>
 
       <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -352,14 +411,14 @@ const TasksPage = () => {
                     {error}
                   </td>
                 </tr>
-              ) : tasks.length === 0 ? (
+              ) : filteredTasks.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">
-                    No tasks found.
+                    No tasks match the selected filter.
                   </td>
                 </tr>
-              ) : tasks.map((task, index) => (
-                <tr key={task._id || task.title} className={index !== tasks.length - 1 ? 'border-b border-[var(--color-border-light)]' : ''}>
+              ) : filteredTasks.map((task, index) => (
+                <tr key={task._id || task.title} className={index !== filteredTasks.length - 1 ? 'border-b border-[var(--color-border-light)]' : ''}>
                   <td className="px-4 py-4">
                     <button
                       type="button"
