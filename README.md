@@ -1,16 +1,14 @@
 # TeamBoard
 
-A simplified project management platform where users can create workspaces, manage projects, organize tasks, and collaborate with their team.
+A simplified project management platform where users can create projects, organize tasks, and track progress.
 
-**MERN Stack Assessment** | Expected Duration: 20–30 Hours | Difficulty: Moderate
+**MERN Stack Assessment** | Difficulty: Moderate
 
 ---
 
 ## Overview
 
-TeamBoard is a full-stack collaborative task management application built to demonstrate production-ready MERN development: clean architecture, scalable APIs, maintainable React code, and thoughtful handling of edge cases.
-
-The goal is not to build the most feature-rich solution, but to show how you structure a project, design a database, build scalable APIs, write maintainable frontend code, and think like a software engineer beyond basic CRUD.
+TeamBoard is a full-stack collaborative task management application: JWT authentication with persistent sessions, project and task CRUD with ownership scoping, a live dashboard, server-side search/filter/sort, pagination, and a responsive UI.
 
 ---
 
@@ -18,12 +16,11 @@ The goal is not to build the most feature-rich solution, but to show how you str
 
 | Layer | Technologies |
 |-------|-------------|
-| **Frontend** | React.js (or Next.js), Router, Axios |
-| **Backend** | Node.js, Express.js |
+| **Frontend** | React 19 (Vite), React Router, Tailwind CSS v4 |
+| **Backend** | Node.js, Express, TypeScript |
 | **Database** | MongoDB + Mongoose |
-| **Authentication** | JWT |
-
-> **Guidelines:** Build from scratch using only the MERN stack. Do not use Firebase or Supabase. Use local MongoDB.
+| **Authentication** | JWT (access + refresh tokens, httpOnly refresh cookie) |
+| **Validation** | Zod |
 
 ---
 
@@ -31,220 +28,180 @@ The goal is not to build the most feature-rich solution, but to show how you str
 
 ### Authentication
 - Register, login, and logout
-- Stay logged in after page refresh (persistent session)
-- Protected routes — unauthenticated users cannot access app pages
+- Access token (15m) held client-side, refresh token (30d) in an httpOnly cookie — "Remember me" controls whether the refresh cookie persists across browser restarts
+- Session restored automatically on page refresh via `GET /api/auth/me` / `GET /api/auth/refresh`
+- All project/task/user/dashboard routes require a valid access token
 
 ### Dashboard
-After login, display:
-- Total Projects
-- Total Tasks
-- Completed Tasks
-- Pending Tasks
-- Recent Activity
+- Total projects, total tasks, completed tasks, pending tasks
+- Recent activity feed, derived from the most recently updated projects and tasks
 
 ### Project Management
 - Create, update, delete, and archive projects
-- Each project includes: **Name**, **Description**, **Status**, **Created Date**
+- Each project has: name, description, status (Active / Completed / Archived), created date
+- Per-owner stats (total / active / completed) and pagination
 
 ### Task Management
-Each project can have multiple tasks with:
-- **Title**, **Description**
-- **Priority** — Low, Medium, High
-- **Status** — Todo, In Progress, Completed
-- **Due Date**
-
-Operations: create, edit, delete, mark complete
-
-### Search & Filter
-- Search by task title
-- Filter by status
-- Filter by priority
-- Sort by due date
+- Each task belongs to a project and has: title, description, priority (Low/Medium/High), status (Todo/In Progress/Completed), due date
+- Create, edit, delete, mark complete
+- Search by title, filter by status, filter by priority, sort by due date — all applied server-side
 
 ### User Profile
-- View profile
-- Update name
-- Update profile photo *(optional)*
-- Change password *(optional)*
+- View profile, update name, update profile photo (file upload), change password
 
-### UI Requirements
-- Responsive navbar and sidebar navigation
-- Dashboard, project listing, task listing
-- Forms with validation feedback
+### UI
+- Responsive navbar with a collapsible sidebar (off-canvas on mobile/tablet, fixed on desktop)
+- Dashboard, project listing, task listing, forms with validation feedback
 - Empty states, loading states, error states
-- Confirmation dialogs (e.g. delete/archive)
-- Responsive on desktop, tablet, and mobile
+- Confirmation dialogs before deleting a project or task
+- Toast notifications for create/update/delete actions
 
 ---
 
-## Edge Cases & Error Handling
+## Error Handling & Validation
 
-The application must handle invalid input gracefully and **never crash** due to bad data.
-
-### Authentication & Authorization
-- Unauthorized requests (missing/expired/invalid JWT)
-- Access only authenticated routes on the frontend and backend
-
-### Validation
-- Required fields
-- Email format validation
-- Password length requirements
-- Duplicate email on registration
-- Invalid MongoDB ObjectIds
-- Invalid request payloads
-
-### API & Server Errors
-- Resource not found (404)
-- Invalid routes (404)
-- Validation errors (400)
-- Server errors (500) with meaningful JSON responses
-- Meaningful HTTP status codes on all endpoints
-
-### UX Edge Cases
-- Empty lists (no projects, no tasks)
-- Loading states while fetching data
-- Error states when API calls fail
-- Confirmation before destructive actions (delete project/task)
+- All request bodies/queries validated with Zod (required fields, email format, password length ≥ 8, enum values); failures return `400` with field-level messages
+- Duplicate email on signup returns `409`
+- Invalid MongoDB ObjectIds (bad `:projectId`/`:taskId`) return `400`, not a crash
+- Unauthenticated requests return `401`; requests for another user's project/task return `404` (ownership is never leaked via `403`)
+- Unmatched routes return a JSON `404`; uncaught errors are funneled through a single Express error-handling middleware and return `500` with a generic message (never a stack trace or crash)
 
 ---
 
 ## Database Design
 
-Minimum collections with proper relationships:
-
-| Collection | Purpose |
-|------------|---------|
-| **User** | Authentication, profile (name, email, optional photo) |
-| **Project** | Belongs to a user; name, description, status, created date, archived flag |
-| **Task** | Belongs to a project; title, description, priority, status, due date |
-
-Relationships should be modeled so projects are scoped to their owner and tasks are scoped to their project.
+| Collection | Purpose | Key relationships |
+|------------|---------|--------------------|
+| **User** | Auth + profile (email, hashed password, username, profile photo, hashed refresh token) | — |
+| **Project** | name, description, status, timestamps | `owner` → User |
+| **Task** | title, description, priority, status, due date, timestamps | `project` → Project, `assignedTo` → User |
 
 ---
 
-## Planned Folder Structure
+## Folder Structure
 
 ```
 TeamBoard/
-├── client/                 # React frontend
-│   ├── public/
+├── Backend/
+│   ├── uploads/profile-pics/    # uploaded profile photos (served statically)
 │   └── src/
-│       ├── components/     # Reusable UI components
-│       ├── pages/          # Route-level views
-│       ├── context/        # Auth & global state
-│       ├── hooks/          # Custom hooks
-│       ├── services/       # API calls (Axios)
-│       ├── utils/          # Helpers
-│       └── App.jsx
+│       ├── app.ts               # Express app + middleware/route wiring
+│       ├── server.ts            # entry point
+│       ├── config/env.ts        # environment variables
+│       ├── lib/db.ts            # Mongo connection
+│       ├── controllers/         # request handlers (auth, project, task, user, dashboard)
+│       ├── routes/              # route definitions per resource
+│       ├── middleware/          # auth, error handler, cors, cookie parsing, uploads
+│       ├── models/               # Mongoose schemas (User, Project, Task)
+│       ├── schemas/              # Zod validation schemas
+│       └── utils/                # jwt, asyncHandler
 │
-├── server/                 # Express backend
-│   ├── config/             # DB connection, env
-│   ├── controllers/        # Request handlers
-│   ├── middleware/         # Auth, validation, error handling
-│   ├── models/             # Mongoose schemas
-│   ├── routes/             # API route definitions
-│   ├── utils/              # Shared utilities
-│   └── server.js
-│
-├── .env.example
-└── README.md
+└── Frontend/
+    └── src/
+        ├── api/                 # thin fetch wrappers per resource (client.js is the shared HTTP layer)
+        ├── components/          # reusable UI (Layout, Form, ConfirmDialog, Pagination, ...)
+        ├── contexts/            # AuthContext, ToastContext
+        ├── hooks/                # useAuth, useToast
+        └── pages/                # route-level views (Dashboard, Projects, Tasks, Profile, Auth)
 ```
 
 ---
 
 ## Environment Variables
 
-Create a `.env` file in the `server/` directory (and `client/` if needed):
+Create `Backend/.env`:
 
 ```env
-# Server
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/teamboard
-JWT_SECRET=your_jwt_secret_here
-JWT_EXPIRE=7d
+PORT=3000
+MONGODB_URI=mongodb://127.0.0.1:27017/teamboard
+JWT_ACCESS_SECRET=replace_with_a_long_random_string
+JWT_REFRESH_SECRET=replace_with_a_different_long_random_string
+CLIENT_ORIGIN=http://localhost:5173
 NODE_ENV=development
-
-# Client (if using Vite/CRA)
-VITE_API_URL=http://localhost:5000/api
 ```
 
-> Copy `.env.example` to `.env` and fill in real values before running. Never commit `.env` to version control.
+Frontend reads `VITE_API_URL` (defaults to `http://localhost:3000` if unset) — set it in `Frontend/.env` when the backend isn't on the default port/host.
+
+> Never commit a real `.env` file. Rotate the JWT secrets above if this repo's `Backend/.env` was ever committed.
 
 ---
 
 ## Installation & Setup
 
-> *Steps below will be updated once the codebase is scaffolded.*
-
 ### Prerequisites
-- Node.js (v18+)
-- MongoDB running locally
-- npm or yarn
+- Node.js 18+
+- MongoDB running locally (or a connection string to a remote instance)
 
 ### Backend
 ```bash
-cd server
+cd Backend
 npm install
-cp .env.example .env   # configure variables
+# create .env as shown above
 npm run dev
 ```
 
 ### Frontend
 ```bash
-cd client
+cd Frontend
 npm install
 npm run dev
 ```
 
 ### Run Locally
 1. Start MongoDB
-2. Start the backend server (`server/`)
-3. Start the frontend dev server (`client/`)
-4. Open the frontend URL in your browser (typically `http://localhost:5173` or `http://localhost:3000`)
+2. `cd Backend && npm run dev` (defaults to `http://localhost:3000`)
+3. `cd Frontend && npm run dev` (defaults to `http://localhost:5173`)
+4. Open `http://localhost:5173`
 
 ---
 
 ## API Overview
 
-REST API with controllers, routes, middleware, and models. All protected routes require a valid JWT.
+All routes below except `/api/auth/signup`, `/api/auth/login`, and `/api/auth/refresh` require `Authorization: Bearer <accessToken>`.
 
-| Area | Endpoints (planned) |
-|------|---------------------|
-| Auth | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout` |
-| Projects | CRUD + archive |
-| Tasks | CRUD + mark complete, scoped to project |
-| User | Get/update profile, change password |
-| Dashboard | Aggregated stats and recent activity |
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/auth/signup` | Register |
+| POST | `/api/auth/login` | Login (sets refresh cookie, returns access token) |
+| POST | `/api/auth/logout` | Logout |
+| GET | `/api/auth/refresh` | Rotate tokens from the refresh cookie |
+| GET | `/api/auth/me` | Current user |
+| GET | `/api/dashboard` | Totals + recent activity |
+| GET | `/api/projects` | List projects (paginated, with stats) |
+| POST | `/api/projects` | Create project |
+| PUT | `/api/projects/:projectId` | Update project |
+| DELETE | `/api/projects/:projectId` | Delete project (and its tasks) |
+| PATCH | `/api/projects/:projectId/archive` | Archive project |
+| GET | `/api/projects/:projectId/tasks` | List a project's tasks |
+| POST | `/api/projects/:projectId/tasks` | Create task |
+| PUT | `/api/projects/:projectId/tasks/:taskId` | Update task |
+| DELETE | `/api/projects/:projectId/tasks/:taskId` | Delete task |
+| PATCH | `/api/projects/:projectId/tasks/:taskId/complete` | Mark task complete |
+| GET | `/api/tasks` | List all of the user's tasks (paginated; `search`, `status`, `priority`, `sortBy` query params) |
+| PATCH | `/api/users/profile` | Update username/profile photo |
+| PATCH | `/api/users/password` | Change password |
 
 ---
 
-## Bonus Features (Optional)
+## Bonus Features Implemented
 
-- Dark mode
-- Pagination
-- Activity timeline
-- Drag & drop tasks
-- Project analytics
+- Pagination (projects and tasks)
 - Toast notifications
-- Skeleton loaders
-- Infinite scroll
-- Unit tests
+- Server-side search/filter/sort for tasks
+
+## Bonus Features Not Implemented
+
+Dark mode, drag & drop, activity-log collection, infinite scroll, unit tests.
 
 ---
 
 ## Submission Checklist
 
-- [ ] GitHub repository
-- [ ] README.md (this file — update with screenshots and live links)
+- [x] GitHub repository
+- [x] README.md
 - [ ] Live deployment link (frontend)
 - [ ] Live deployment link (backend/API)
-
-### README must include
-- Project setup & installation steps
-- Environment variables
-- Folder structure
-- Screenshots
-- Feature list
+- [ ] Screenshots
 
 ---
 
@@ -261,19 +218,6 @@ REST API with controllers, routes, middleware, and models. All protected routes 
 | Validation & Error Handling | 10 |
 | Documentation | 5 |
 | **Total** | **100** |
-
----
-
-## Screenshots
-
-> *Add screenshots here once the application is built and deployed.*
-
-| Screen | Preview |
-|--------|---------|
-| Dashboard | *TBD* |
-| Projects | *TBD* |
-| Tasks | *TBD* |
-| Profile | *TBD* |
 
 ---
 

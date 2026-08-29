@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listTasks } from '../controllers/taskController';
+import { getDashboard } from '../controllers/dashboardController';
 import { requireAuth } from '../middleware/authMiddleware';
 import { asyncHandler } from '../utils/asyncHandler';
 
@@ -7,6 +7,6 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', asyncHandler(listTasks));
+router.get('/', asyncHandler(getDashboard));
 
 export default router;

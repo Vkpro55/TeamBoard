@@ -25,19 +25,27 @@ export async function listTasks(req: Request, res: Response) {
     return res.status(400).json({ error: parseResult.error.flatten().fieldErrors });
   }
 
-  const { page, limit } = parseResult.data;
+  const { page, limit, search, status, priority, sortBy } = parseResult.data;
   const skip = (page - 1) * limit;
   const projects = await Project.find({ owner: req.user.id }).select('_id');
   const projectIds = projects.map((project) => project._id);
 
+  const filter: Record<string, unknown> = { project: { $in: projectIds } };
+  if (status) filter.status = status;
+  if (priority) filter.priority = priority;
+  if (search) filter.title = { $regex: search, $options: 'i' };
+
+  const sort: Record<string, 1 | -1> =
+    sortBy === '-dueDate' ? { dueDate: -1, createdAt: -1 } : { dueDate: 1, createdAt: -1 };
+
   const [tasks, totalItems] = await Promise.all([
-    Task.find({ project: { $in: projectIds } })
-      .sort({ dueDate: 1, createdAt: -1 })
+    Task.find(filter)
+      .sort(sort)
       .skip(skip)
       .limit(limit)
       .populate('project', 'id name status')
       .populate('assignedTo', 'id username email'),
-    Task.countDocuments({ project: { $in: projectIds } }),
+    Task.countDocuments(filter),
   ]);
 
   return res.status(200).json({

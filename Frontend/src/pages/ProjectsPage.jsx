@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { projectApi } from '../api/projects'
 import Pagination from '../components/Pagination'
 import ProjectStatCard from '../components/Main/ProjectStatCard'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { useToast } from '../hooks/useToast'
 
 const statusClasses = {
@@ -52,6 +53,7 @@ const ProjectsPage = () => {
   const [updatingProjectId, setUpdatingProjectId] = useState(null)
   const [editForm, setEditForm] = useState(getInitialEditState)
   const [deleteProjectId, setDeleteProjectId] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const loadProjects = useCallback(async (signal, { page = currentPage } = {}) => {
     try {
@@ -211,20 +213,26 @@ const ProjectsPage = () => {
     }
   }
 
-  const handleDeleteProject = async (project) => {
-    if (!project?._id || deleteProjectId) {
+  const requestDeleteProject = (project) => {
+    setOpenActionProjectId(null)
+    setDeleteTarget(project)
+  }
+
+  const cancelDeleteProject = () => {
+    if (deleteProjectId) {
       return
     }
+    setDeleteTarget(null)
+  }
 
-    const confirmed = window.confirm(`Delete project "${project.name}"? This cannot be undone.`)
-    if (!confirmed) {
-      setOpenActionProjectId(null)
+  const confirmDeleteProject = async () => {
+    const project = deleteTarget
+    if (!project?._id || deleteProjectId) {
       return
     }
 
     try {
       setDeleteProjectId(project._id)
-      setOpenActionProjectId(null)
       setError('')
       await projectApi.delete(project._id)
       toast.success('Project deleted successfully')
@@ -234,6 +242,7 @@ const ProjectsPage = () => {
       toast.error(err.message || 'Failed to delete project')
     } finally {
       setDeleteProjectId(null)
+      setDeleteTarget(null)
     }
   }
 
@@ -347,7 +356,7 @@ const ProjectsPage = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDeleteProject(project)}
+                          onClick={() => requestDeleteProject(project)}
                           disabled={deleteProjectId === project._id}
                           className="w-full rounded-sm px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -440,6 +449,17 @@ const ProjectsPage = () => {
           </div>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete project"
+        message={deleteTarget ? `Delete project "${deleteTarget.name}"? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        danger
+        busy={Boolean(deleteProjectId)}
+        onConfirm={confirmDeleteProject}
+        onCancel={cancelDeleteProject}
+      />
     </div>
   )
 }

@@ -3,6 +3,7 @@ import { Check, MoreHorizontal, Plus, X } from 'lucide-react'
 import { projectApi } from '../api/projects'
 import { taskApi } from '../api/tasks'
 import Pagination from '../components/Pagination'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { useToast } from '../hooks/useToast'
 
 const pageSize = 5
@@ -21,7 +22,6 @@ const statusClasses = {
 
 const taskStatuses = ['Todo', 'In Progress', 'Completed']
 const taskPriorities = ['Low', 'Medium', 'High']
-const taskFilterOptions = ['All Tasks', 'Priority', 'Due Date', 'Status']
 const initialCreateForm = {
   projectId: '',
   title: '',
@@ -56,15 +56,23 @@ const TasksPage = () => {
   const [editingTaskId, setEditingTaskId] = useState('')
   const [editForm, setEditForm] = useState({ title: '', description: '', status: 'Todo' })
   const [openActionTaskId, setOpenActionTaskId] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState(initialCreateForm)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState('')
   const [projects, setProjects] = useState([])
   const [projectsLoading, setProjectsLoading] = useState(false)
-  const [taskFilter, setTaskFilter] = useState('All Tasks')
-  const [taskFilterValue, setTaskFilterValue] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [priorityFilter, setPriorityFilter] = useState('')
+  const [sortBy, setSortBy] = useState('dueDate')
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(search.trim()), 300)
+    return () => clearTimeout(id)
+  }, [search])
 
   const loadTasks = useCallback(async (signal, { page = currentPage } = {}) => {
     try {
@@ -72,7 +80,14 @@ const TasksPage = () => {
       setError('')
       setActionError('')
 
-      const data = await taskApi.list({ page, limit: pageSize })
+      const data = await taskApi.list({
+        page,
+        limit: pageSize,
+        search: debouncedSearch,
+        status: statusFilter,
+        priority: priorityFilter,
+        sortBy,
+      })
 
       if (!signal?.aborted) {
         const nextPagination = data.pagination || { page, limit: pageSize, totalItems: data.tasks?.length || 0, totalPages: 1 }
@@ -89,7 +104,7 @@ const TasksPage = () => {
         setLoading(false)
       }
     }
-  }, [currentPage])
+  }, [currentPage, debouncedSearch, statusFilter, priorityFilter, sortBy])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -100,6 +115,11 @@ const TasksPage = () => {
 
     return () => controller.abort()
   }, [loadTasks])
+
+  const handleFilterChange = (setter) => (event) => {
+    setter(event.target.value)
+    setCurrentPage(1)
+  }
 
   const totalPages = pagination.totalPages
   const safeCurrentPage = Math.min(currentPage, totalPages)
@@ -118,11 +138,6 @@ const TasksPage = () => {
   const refreshCurrentPage = async () => {
     const pageAfterDelete = tasks.length === 1 && safeCurrentPage > 1 ? safeCurrentPage - 1 : safeCurrentPage
     await loadTasks(undefined, { page: pageAfterDelete })
-  }
-
-  const handleFilterChange = (value) => {
-    setTaskFilter(value)
-    setTaskFilterValue('')
   }
 
   const openCreateTask = async () => {
@@ -252,17 +267,29 @@ const TasksPage = () => {
     }
   }
 
-  const handleDeleteTask = async (task) => {
-    const projectId = getProjectId(task)
+  const requestDeleteTask = (task) => {
+    setOpenActionTaskId(null)
+    setDeleteTarget(task)
+  }
 
-    if (!projectId) {
-      setOpenActionTaskId(null)
+  const cancelDeleteTask = () => {
+    if (busyTaskId) {
+      return
+    }
+    setDeleteTarget(null)
+  }
+
+  const confirmDeleteTask = async () => {
+    const task = deleteTarget
+    const projectId = task && getProjectId(task)
+
+    if (!task || !projectId) {
+      setDeleteTarget(null)
       return
     }
 
     try {
       setBusyTaskId(task._id)
-      setOpenActionTaskId(null)
       setActionError('')
       await taskApi.delete(projectId, task._id)
       toast.success('Task deleted successfully')
@@ -272,47 +299,9 @@ const TasksPage = () => {
       toast.error(err.message || 'Failed to delete task')
     } finally {
       setBusyTaskId('')
+      setDeleteTarget(null)
     }
   }
-
-  const filteredTasks = tasks.filter((task) => {
-    if (taskFilter === 'All Tasks') {
-      return true
-    }
-
-    if (taskFilter === 'Priority') {
-      return taskFilterValue ? task.priority === taskFilterValue : true
-    }
-
-    if (taskFilter === 'Status') {
-      return taskFilterValue ? task.status === taskFilterValue : true
-    }
-
-    if (taskFilter === 'Due Date') {
-      if (!taskFilterValue) {
-        return true
-      }
-
-      const dueDate = task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 10) : ''
-      return dueDate === taskFilterValue
-    }
-
-    return true
-  })
-
-  const visibleTasks = filteredTasks.filter((task) => {
-    if (!searchQuery) {
-      return true
-    }
-    const query = searchQuery.toLowerCase()
-    return (
-      task.title?.toLowerCase().includes(query) ||
-      task.description?.toLowerCase().includes(query) ||
-      task.project?.name?.toLowerCase().includes(query) ||
-      task.priority?.toLowerCase().includes(query) ||
-      task.status?.toLowerCase().includes(query)
-    )
-  })
 
   return (
     <div className="space-y-6">
@@ -332,75 +321,57 @@ const TasksPage = () => {
         </button>
       </div>
 
-      <div className="flex flex-col gap-4 rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)] p-4 lg:flex-row lg:items-center lg:justify-end">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-            Search:
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search tasks..."
-              className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)] w-[200px]"
-            />
-          </label>
-          <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-            Filter by:
-            <select
-              value={taskFilter}
-              onChange={(event) => handleFilterChange(event.target.value)}
-              className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
-            >
-              {taskFilterOptions.map((option) => (
-                <option key={option} value={option}>{option}</option>
-              ))}
-            </select>
-          </label>
+      <div className="flex flex-col gap-4 rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)] p-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-end">
+        <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+          Search:
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => { setSearch(event.target.value); setCurrentPage(1) }}
+            placeholder="Search by title..."
+            className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)] w-[200px]"
+          />
+        </label>
 
-          {taskFilter === 'Priority' ? (
-            <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-              Value:
-              <select
-                value={taskFilterValue}
-                onChange={(event) => setTaskFilterValue(event.target.value)}
-                className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
-              >
-                <option value="">All</option>
-                {taskPriorities.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+        <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+          Status:
+          <select
+            value={statusFilter}
+            onChange={handleFilterChange(setStatusFilter)}
+            className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+          >
+            <option value="">All</option>
+            {taskStatuses.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </label>
 
-          {taskFilter === 'Status' ? (
-            <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-              Value:
-              <select
-                value={taskFilterValue}
-                onChange={(event) => setTaskFilterValue(event.target.value)}
-                className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
-              >
-                <option value="">All</option>
-                {taskStatuses.map((option) => (
-                  <option key={option} value={option}>{option}</option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+        <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+          Priority:
+          <select
+            value={priorityFilter}
+            onChange={handleFilterChange(setPriorityFilter)}
+            className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+          >
+            <option value="">All</option>
+            {taskPriorities.map((option) => (
+              <option key={option} value={option}>{option}</option>
+            ))}
+          </select>
+        </label>
 
-          {taskFilter === 'Due Date' ? (
-            <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-              Date:
-              <input
-                type="date"
-                value={taskFilterValue}
-                onChange={(event) => setTaskFilterValue(event.target.value)}
-                className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
-              />
-            </label>
-          ) : null}
-        </div>
+        <label className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+          Sort by due date:
+          <select
+            value={sortBy}
+            onChange={handleFilterChange(setSortBy)}
+            className="rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+          >
+            <option value="dueDate">Earliest first</option>
+            <option value="-dueDate">Latest first</option>
+          </select>
+        </label>
       </div>
 
       <div className="rounded-sm border border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -436,14 +407,14 @@ const TasksPage = () => {
                     {error}
                   </td>
                 </tr>
-              ) : visibleTasks.length === 0 ? (
+              ) : tasks.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-8 text-center text-sm text-[var(--color-text-muted)]">
                     No tasks match the selected filter and search.
                   </td>
                 </tr>
-              ) : visibleTasks.map((task, index) => (
-                <tr key={task._id || task.title} className={index !== visibleTasks.length - 1 ? 'border-b border-[var(--color-border-light)]' : ''}>
+              ) : tasks.map((task, index) => (
+                <tr key={task._id || task.title} className={index !== tasks.length - 1 ? 'border-b border-[var(--color-border-light)]' : ''}>
                   <td className="px-4 py-4">
                     <button
                       type="button"
@@ -496,7 +467,7 @@ const TasksPage = () => {
                         ) : null}
                         <button
                           type="button"
-                          onClick={() => handleDeleteTask(task)}
+                          onClick={() => requestDeleteTask(task)}
                           disabled={busyTaskId === task._id}
                           className="w-full rounded-sm px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -597,6 +568,7 @@ const TasksPage = () => {
                   <span>Due Date</span>
                   <input
                     type="date"
+                    min={new Date().toISOString().slice(0, 10)}
                     value={createForm.dueDate}
                     onChange={(event) => setCreateForm((current) => ({ ...current, dueDate: event.target.value }))}
                     className="w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
@@ -711,6 +683,17 @@ const TasksPage = () => {
           </div>
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete task"
+        message={deleteTarget ? `Delete task "${deleteTarget.title}"? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        danger
+        busy={Boolean(deleteTarget && busyTaskId === deleteTarget._id)}
+        onConfirm={confirmDeleteTask}
+        onCancel={cancelDeleteTask}
+      />
     </div>
   )
 }

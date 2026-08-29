@@ -7,17 +7,18 @@ import {
   listProjects,
   updateProject,
 } from '../controllers/projectController';
+import { asyncHandler } from '../utils/asyncHandler';
 import taskRoutes from './taskRoutes';
 
 const router = Router();
 
 router.use(requireAuth);
 
-router.get('/', listProjects);
-router.post('/', createProject);
-router.put('/:projectId', updateProject);
-router.delete('/:projectId', deleteProject);
-router.patch('/:projectId/archive', archiveProject);
+router.get('/', asyncHandler(listProjects));
+router.post('/', asyncHandler(createProject));
+router.put('/:projectId', asyncHandler(updateProject));
+router.delete('/:projectId', asyncHandler(deleteProject));
+router.patch('/:projectId/archive', asyncHandler(archiveProject));
 router.use('/:projectId/tasks', taskRoutes);
 
 export default router;
