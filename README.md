@@ -91,7 +91,3 @@ Production images are built and pushed automatically via [GitHub Actions](.githu
 The backend exposes a REST API under `/api` — auth, projects, tasks, dashboard, and user profile endpoints. All routes except signup/login/refresh require a bearer access token.
 
 ---
-
-## License
-
-MIT
