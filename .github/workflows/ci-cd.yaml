@@ -22,7 +22,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ./Docker/Dockerfile.backend
+          file: ./docker/Dockerfile.backend
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/teamboard-backend:latest
@@ -44,7 +44,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: .
-          file: ./Docker/Dockerfile.frontend
+          file: ./docker/Dockerfile.frontend
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/teamboard-frontend:latest
