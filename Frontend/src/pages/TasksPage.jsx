@@ -54,7 +54,7 @@ const TasksPage = () => {
   const [actionError, setActionError] = useState('')
   const [busyTaskId, setBusyTaskId] = useState('')
   const [editingTaskId, setEditingTaskId] = useState('')
-  const [editForm, setEditForm] = useState({ title: '', description: '', status: 'Todo' })
+  const [editForm, setEditForm] = useState({ title: '', description: '', status: 'Todo', priority: 'Medium', dueDate: '' })
   const [openActionTaskId, setOpenActionTaskId] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
@@ -233,13 +233,15 @@ const TasksPage = () => {
       title: task.title || '',
       description: task.description || '',
       status: task.status || 'Todo',
+      priority: task.priority || 'Medium',
+      dueDate: task.dueDate ? task.dueDate.slice(0, 10) : '',
     })
     setOpenActionTaskId(null)
   }
 
   const cancelEditingTask = () => {
     setEditingTaskId('')
-    setEditForm({ title: '', description: '', status: 'Todo' })
+    setEditForm({ title: '', description: '', status: 'Todo', priority: 'Medium', dueDate: '' })
   }
 
   const handleUpdateTask = async (task) => {
@@ -255,7 +257,13 @@ const TasksPage = () => {
     try {
       setBusyTaskId(task._id)
       setActionError('')
-      await taskApi.update(projectId, task._id, { title, description, status: editForm.status })
+      await taskApi.update(projectId, task._id, {
+        title,
+        description,
+        status: editForm.status,
+        priority: editForm.priority,
+        dueDate: editForm.dueDate || null,
+      })
       toast.success('Task updated successfully')
       cancelEditingTask()
       await loadTasks(undefined, { page: safeCurrentPage })
@@ -661,6 +669,32 @@ const TasksPage = () => {
                   ))}
                 </select>
               </label>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block space-y-2 text-sm text-[var(--color-text-secondary)]">
+                  <span>Priority</span>
+                  <select
+                    value={editForm.priority}
+                    onChange={(event) => setEditForm((current) => ({ ...current, priority: event.target.value }))}
+                    className="w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+                  >
+                    {taskPriorities.map((priority) => (
+                      <option key={priority} value={priority}>{priority}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block space-y-2 text-sm text-[var(--color-text-secondary)]">
+                  <span>Due Date</span>
+                  <input
+                    type="date"
+                    min={new Date().toISOString().slice(0, 10)}
+                    value={editForm.dueDate}
+                    onChange={(event) => setEditForm((current) => ({ ...current, dueDate: event.target.value }))}
+                    className="w-full rounded-sm border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-ring)]"
+                  />
+                </label>
+              </div>
 
               <div className="flex justify-end gap-3 pt-2">
                 <button
