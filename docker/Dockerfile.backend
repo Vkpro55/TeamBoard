@@ -1,12 +1,29 @@
-FROM node:20-alpine
+FROM node:20-alpine AS builder
 
 WORKDIR /usr/src/app
-ENV NODE_ENV=production
 
 COPY backend/package*.json ./
-RUN npm ci --omit=dev
+COPY backend/tsconfig.json ./
+
+RUN npm ci
 
 COPY backend/src ./src
 
+RUN npm run build
+
+
+FROM node:20-alpine
+
+WORKDIR /usr/src/app
+
+ENV NODE_ENV=production
+
+COPY backend/package*.json ./
+
+RUN npm ci --omit=dev
+
+COPY --from=builder /usr/src/app/dist ./dist
+
 EXPOSE 5000
+
 CMD ["npm", "start"]
